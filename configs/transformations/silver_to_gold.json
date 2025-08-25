@@ -1,0 +1,21 @@
+{
+  "datasets": [
+    {
+      "source": ["silver.customers", "silver.orders"],
+      "target": "gold.customer_orders_summary",
+      "zorder_by": ["customer_id"],
+      "transformations": [
+        {"type": "join", "left": "silver.customers", "right": "silver.orders", "how": "inner", "on": "customer_id"},
+        {"type": "aggregate",
+         "group_by": ["customer_id"],
+         "metrics": {
+           "orders_count": "count(1)",
+           "total_spent": "sum(OrderAmount)",
+           "first_order_dt": "min(OrderDate)",
+           "last_order_dt": "max(OrderDate)"
+         }
+        }
+      ]
+    }
+  ]
+}

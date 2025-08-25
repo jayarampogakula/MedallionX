@@ -2,22 +2,67 @@
   "datasets": [
     {
       "source": "bronze.customers",
-      "target": "silver.customers",
+      "target": "silver.dim_customers",
       "transformations": [
-        {"type": "rename", "columns": {"CustID": "customer_id", "EmailAddress": "email"}},
-        {"type": "cast", "columns": {"SignupDate": "date", "IsActive": "boolean"}},
-        {"type": "with_columns", "exprs": {"signup_year": "year(SignupDate)"}},
-        {"type": "drop_nulls", "columns": ["customer_id"]},
-        {"type": "deduplicate", "keys": ["customer_id"], "order_by": "_bronze_ingestion_ts desc"}
-      ]
+        {"type":"rename","columns":{"CustID":"customer_id","EmailAddress":"email"}},
+        {"type":"cast","columns":{"SignupDate":"timestamp","IsActive":"boolean"}},
+        {"type":"with_columns","exprs":{"_event_ts":"coalesce(SignupDate, current_timestamp())"}}
+      ],
+      "schema_policy": {
+        "mode": "evolve",
+        "expected_schema": [
+          {"name":"customer_id","type":"string","nullable":false},
+          {"name":"email","type":"string","nullable":true},
+          {"name":"SignupDate","type":"timestamp","nullable":true},
+          {"name":"IsActive","type":"boolean","nullable":true},
+          {"name":"_event_ts","type":"timestamp","nullable":false}
+        ]
+      },
+      "quality_checks": {
+        "not_null": ["customer_id"],
+        "unique": [["customer_id"]],
+        "regex": {"email": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"},
+        "row_condition": {"expr":"IsActive IS NULL OR IsActive IN (true,false)", "min_pass_pct": 100.0},
+        "freshness": {"ts_col":"_event_ts", "max_lag_hours": 48},
+        "fail_on_error": true
+      },
+      "dq_metrics_table": "ops.dq_metrics",
+      "scd2": {
+        "natural_keys": ["customer_id"],
+        "compare_cols": ["email","IsActive"],
+        "ts_col": "_event_ts",
+        "effective_from_col": "effective_from",
+        "effective_to_col": "effective_to",
+        "current_flag_col": "is_current",
+        "hard_delete": false
+      }
     },
+
     {
       "source": "bronze.orders",
-      "target": "silver.orders",
+      "target": "silver.fct_orders",
       "transformations": [
-        {"type": "cast", "columns": {"OrderAmount": "double", "OrderDate": "date"}},
-        {"type": "filter", "expr": "OrderAmount >= 0"}
-      ]
+        {"type":"cast","columns":{"OrderAmount":"double","OrderDate":"date"}},
+        {"type":"filter","expr":"OrderAmount >= 0"},
+        {"type":"with_columns","exprs":{"_event_ts":"coalesce(cast(OrderDate as timestamp), current_timestamp())"}}
+      ],
+      "schema_policy": {
+        "mode": "strict",
+        "expected_schema": [
+          {"name":"OrderId","type":"string","nullable":false},
+          {"name":"customer_id","type":"string","nullable":false},
+          {"name":"OrderAmount","type":"double","nullable":true},
+          {"name":"OrderDate","type":"date","nullable":true},
+          {"name":"_event_ts","type":"timestamp","nullable":false}
+        ]
+      },
+      "quality_checks": {
+        "primary_key": ["OrderId"],
+        "not_null": ["OrderId","customer_id"],
+        "ranges": {"OrderAmount":{"min":0}},
+        "fail_on_error": true
+      },
+      "dq_metrics_table": "ops.dq_metrics"
     }
   ]
 }

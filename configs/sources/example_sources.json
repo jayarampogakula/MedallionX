@@ -1,0 +1,27 @@
+{
+  "sources": [
+    {
+      "name": "customers_sql",
+      "source_type": "sqlserver",
+      "jdbc_url": "jdbc:sqlserver://sql.company.com:1433;databaseName=SalesDB",
+      "connection": {
+        "user": "etl_user",
+        "password": {"scope":"kv-scope","key":"sql-pass"}
+      },
+      "table": "dbo.Customers",
+      "landing_path": "abfss://landing@youraccount.dfs.core.windows.net/data/customers/",
+      "partition_by": ["_ingestion_dt"]
+    },
+    {
+      "name": "orders_files",
+      "source_type": "files",
+      "format": "csv",
+      "path": "abfss://raw@youraccount.dfs.core.windows.net/orders/*.csv",
+      "options": {
+        "header": "true",
+        "inferSchema": "true"
+      },
+      "landing_path": "abfss://landing@youraccount.dfs.core.windows.net/data/orders/"
+    }
+  ]
+}

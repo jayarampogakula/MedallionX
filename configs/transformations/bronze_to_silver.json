@@ -1,0 +1,23 @@
+{
+  "datasets": [
+    {
+      "source": "bronze.customers",
+      "target": "silver.customers",
+      "transformations": [
+        {"type": "rename", "columns": {"CustID": "customer_id", "EmailAddress": "email"}},
+        {"type": "cast", "columns": {"SignupDate": "date", "IsActive": "boolean"}},
+        {"type": "with_columns", "exprs": {"signup_year": "year(SignupDate)"}},
+        {"type": "drop_nulls", "columns": ["customer_id"]},
+        {"type": "deduplicate", "keys": ["customer_id"], "order_by": "_bronze_ingestion_ts desc"}
+      ]
+    },
+    {
+      "source": "bronze.orders",
+      "target": "silver.orders",
+      "transformations": [
+        {"type": "cast", "columns": {"OrderAmount": "double", "OrderDate": "date"}},
+        {"type": "filter", "expr": "OrderAmount >= 0"}
+      ]
+    }
+  ]
+}

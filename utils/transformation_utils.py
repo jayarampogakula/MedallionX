@@ -1,6 +1,8 @@
 from typing import Dict, Any, List, Union
 from pyspark.sql import DataFrame, functions as F, types as T
 from .logger import log
+from .schema_utils import align_to_schema
+from .dq_utils import run_quality_checks
 
 class TransformationEngine:
     """
@@ -100,13 +102,35 @@ class TransformationEngine:
         agg_exprs = [F.expr(f"{expr}").alias(alias) for alias, expr in metrics.items()]
         return df.groupBy(*[F.col(c) for c in group_by]).agg(*agg_exprs)
 
-# ---------- IO helpers for Delta
-def write_delta_table(df: DataFrame, full_name: str, mode: str = "append", partition_by: List[str] = None, zorder_by: List[str] = None):
-    log("Writing Delta", table=full_name, mode=mode, partition_by=partition_by, zorder_by=zorder_by)
-    (df.write
-        .format("delta")
-        .mode(mode)
-        .option("mergeSchema", "true")
-        .saveAsTable(full_name))
+def write_delta_table(df: DataFrame,
+                      full_name: str,
+                      mode: str = "append",
+                      partition_by: List[str] = None,
+                      zorder_by: List[str] = None,
+                      schema_policy: Dict[str, Any] = None,
+                      dq_checks: Dict[str, Any] = None,
+                      dq_metrics_table: str = None):
+    """
+    schema_policy: {"mode":"strict|evolve|relaxed", "expected_schema":[{name,type,nullable},...]}
+    dq_checks:     see dq_utils.run_quality_checks
+    """
+    if schema_policy and schema_policy.get("expected_schema"):
+        df = align_to_schema(df, schema_policy["expected_schema"], schema_policy.get("mode","evolve"))
+
+    if dq_checks:
+        run_quality_checks(df, dq_checks, metrics_table=dq_metrics_table, fail_on_error=dq_checks.get("fail_on_error", True))
+
+    merge_schema = "true" if (schema_policy and schema_policy.get("mode","evolve") == "evolve") else "false"
+
+    log("Writing Delta", table=full_name, mode=mode, mergeSchema=merge_schema, partition_by=partition_by, zorder_by=zorder_by)
+    writer = (df.write
+                .format("delta")
+                .mode(mode)
+                .option("mergeSchema", merge_schema))
+    if partition_by:
+        writer = writer.partitionBy(partition_by)
+    writer.saveAsTable(full_name)
+
     if zorder_by:
         spark.sql(f"OPTIMIZE {full_name} ZORDER BY ({', '.join(zorder_by)})")
+

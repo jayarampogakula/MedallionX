@@ -1,21 +1,29 @@
 {
   "datasets": [
     {
-      "source": ["silver.customers", "silver.orders"],
-      "target": "gold.customer_orders_summary",
+      "source": "silver.dim_customers",
+      "target": "gold.dim_customers",
+      "transformations": [],
+      "schema_policy": { "mode":"evolve", "expected_schema": [] },
+      "quality_checks": { "not_null": ["customer_id","is_current"] },
+      "dq_metrics_table": "ops.dq_metrics"
+    },
+    {
+      "source": ["silver.dim_customers","silver.fct_orders"],
+      "target": "gold.customer_sales",
       "zorder_by": ["customer_id"],
       "transformations": [
-        {"type": "join", "left": "silver.customers", "right": "silver.orders", "how": "inner", "on": "customer_id"},
-        {"type": "aggregate",
-         "group_by": ["customer_id"],
-         "metrics": {
-           "orders_count": "count(1)",
-           "total_spent": "sum(OrderAmount)",
-           "first_order_dt": "min(OrderDate)",
-           "last_order_dt": "max(OrderDate)"
-         }
-        }
-      ]
+        {"type":"join","left":"silver.fct_orders","right":"silver.dim_customers","how":"left","on":"customer_id"},
+        {"type":"aggregate",
+         "group_by":["customer_id"],
+         "metrics":{
+           "orders_cnt":"count(1)",
+           "revenue":"sum(OrderAmount)"
+         }}
+      ],
+      "schema_policy": { "mode":"relaxed" },
+      "quality_checks": { "not_null": ["customer_id"], "ranges": {"revenue":{"min":0}} },
+      "dq_metrics_table": "ops.dq_metrics"
     }
   ]
 }

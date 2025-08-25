@@ -1,0 +1,14 @@
+{
+  "datasets": [
+    {
+      "name": "customers",
+      "landing_path": "abfss://landing@youraccount.dfs.core.windows.net/data/customers/",
+      "bronze_table": "bronze.customers"
+    },
+    {
+      "name": "orders",
+      "landing_path": "abfss://landing@youraccount.dfs.core.windows.net/data/orders/",
+      "bronze_table": "bronze.orders"
+    }
+  ]
+}
